@@ -1,2 +1,7 @@
 * LAMEBOY
 Game Boy Emulator
+
+* Resources
+- [[https://bgb.bircd.org/pandocs.htm]]
+- [[https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html]]
+- [[https://www.youtube.com/watch?v=HyzD8pNlpwI]]
