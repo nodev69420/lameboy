@@ -1,0 +1,53 @@
+[
+    {
+        "name": "NOP",
+        "length": 1,
+        "duration": 4
+    },
+    {
+        "name": "LD BC,d16",
+        "length": 3,
+        "duration": 12
+    },
+    {
+        "name": "LD (BC),A",
+        "length": 1,
+        "duration": 8
+    },
+    {
+        "name": "INC BC",
+        "length": 1,
+        "duration": 8
+    },
+    {
+        "name": "INC B",
+        "length": 1,
+        "duration": 4,
+        "flags": {
+            "zero": "op",
+            "subtract": "0",
+            "halfcarry": "op"
+        }
+    },
+    {
+        "name": "DEC B",
+        "length": 1,
+        "duration": 4,
+        "flags": {
+            "zero": "op",
+            "subtract": "1",
+            "halfcarry": "op"
+        }
+    },
+    {
+        "name": "RLCA",
+        "length": 1,
+        "duration": 4,
+        "flags": {
+            "zero": "0",
+            "subtract": "0",
+            "halfcarry": "0",
+            "carry": "op"
+        }
+    }
+]
