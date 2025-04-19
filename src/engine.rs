@@ -11,14 +11,16 @@ use winit::{
 };
 
 pub struct Engine<'a> {
+    time: Time,
     renderer: Renderer<'a>,
 }
 
 impl<'a> app::Application for Engine<'a> {
     fn new_app(window: Arc<app::Window>) -> Self {
         let renderer = Renderer::new(window).unwrap();
+        let time = Time::start();
 
-        Self { renderer }
+        Self { time, renderer }
     }
 
     fn handle_event(&mut self, event: &app::AppEvent) -> app::AppSignal {
@@ -49,7 +51,10 @@ impl<'a> app::Application for Engine<'a> {
     }
 
     fn update(&mut self) -> app::AppSignal {
+        self.time = self.time.next();
         self.renderer.draw();
+
+        // println!("{:#?}", self.time);
 
         use app::AppSignal;
         AppSignal::Continue
@@ -226,7 +231,13 @@ impl<'a> Renderer<'a> {
 
         // texture
 
-        let texture = load_texture(&device, &queue, "./ass/test.png");
+        // let texture =
+        //     load_texture(&device, &queue, "Example", "./ass/test.png");
+        let mut canvas = Canvas::new(256, 256, Pixel::BLUE);
+        for pixel in canvas.pixels.iter_mut() {
+            *pixel = rand::random::<u32>().into();
+        }
+        let texture = canvas.gpu_load("CUM", &device, &queue);
 
         let texture_bind_group =
             device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -285,6 +296,7 @@ impl<'a> Renderer<'a> {
             bytemuck::cast_slice(&[MatrixUniform::from(make_texture_matrix(
                 self.config.width,
                 self.config.height,
+                2.0,
             ))]),
         );
 
@@ -329,44 +341,114 @@ impl<'a> Renderer<'a> {
 
         output.present();
     }
+
+    pub fn use_internals(&self) -> (&wgpu::Device, &wgpu::Queue) {
+        (&self.device, &self.queue)
+    }
 }
 
-// pub struct Pixel {
-//     pub r: u8,
-//     pub g: u8,
-//     pub b: u8,
-//     pub a: u8,
-// }
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Pixel {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
 
-// impl Into<u32> for Pixel {
-//     fn into(self) -> u32 {
-//         ((self.r as u32) & 0x00_00_00_FF)
-//             | (((self.g as u32) << 8) & 0x00_00_FF_00)
-//             | (((self.b as u32) << 16) & 0x00_FF_00_00)
-//             | (((self.a as u32) << 24) & 0xFF_00_00_00)
-//     }
-// }
+impl Pixel {
+    pub const WHITE: Pixel = Pixel {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
 
-// pub struct Canvas {
-//     pixels: Box<[Pixel]>,
-//     pub width: u32,
-//     pub height: u32,
-// }
+    pub const RED: Pixel = Pixel {
+        r: 255,
+        g: 0,
+        b: 0,
+        a: 255,
+    };
 
-// impl Canvas {
-//     pub fn new(width: u32, height: u32, fill: Pixel) -> Canvas {
-//         assert!(width != 0 && height != 0);
-//         let area = width * height;
+    pub const GREEN: Pixel = Pixel {
+        r: 0,
+        g: 255,
+        b: 0,
+        a: 255,
+    };
 
-//         let pixels =
-//     }
-// }
+    pub const BLUE: Pixel = Pixel {
+        r: 0,
+        g: 0,
+        b: 255,
+        a: 255,
+    };
+}
 
-fn make_texture_matrix(width: u32, height: u32) -> Matrix4<f32> {
+impl Into<u32> for Pixel {
+    fn into(self) -> u32 {
+        ((self.r as u32) & 0x00_00_00_FF)
+            | (((self.g as u32) << 8) & 0x00_00_FF_00)
+            | (((self.b as u32) << 16) & 0x00_FF_00_00)
+            | (((self.a as u32) << 24) & 0xFF_00_00_00)
+    }
+}
+
+impl From<u32> for Pixel {
+    fn from(value: u32) -> Self {
+        Self {
+            r: (value & 0x00_00_00_FF) as u8,
+            g: ((value & 0x00_00_FF_00) >> 8) as u8,
+            b: ((value & 0x00_FF_00_00) >> 16) as u8,
+            a: ((value & 0xFF_00_00_00) >> 24) as u8,
+        }
+    }
+}
+
+pub struct Canvas {
+    pub pixels: Box<[Pixel]>,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Canvas {
+    pub fn new(width: u32, height: u32, fill: Pixel) -> Self {
+        assert!(width != 0 && height != 0);
+        let area = width * height;
+
+        let pixels = vec![fill; area as usize].into_boxed_slice();
+
+        Self {
+            pixels,
+            width,
+            height,
+        }
+    }
+
+    pub fn gpu_load(
+        &self,
+        name: &str,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Texture {
+        Texture::from_data(
+            device,
+            queue,
+            name,
+            bytemuck::cast_slice(&self.pixels),
+            self.width,
+            self.height,
+        )
+    }
+}
+
+fn make_texture_matrix(width: u32, height: u32, scale: f32) -> Matrix4<f32> {
     assert!(width != 0 && height != 0);
     let screen =
         cgmath::ortho(0.0, width as f32, 0.0, height as f32, -1.0, 1.0);
-    screen * Matrix4::from_nonuniform_scale(256.0, 256.0, 1.0)
+    let scale = 256.0 * scale;
+    screen * Matrix4::from_nonuniform_scale(scale, scale, 1.0)
 }
 
 fn make_render_pipeline<F>(
@@ -458,6 +540,7 @@ where
 fn load_texture<F>(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    name: &str,
     path: F,
 ) -> Texture
 where
@@ -468,7 +551,7 @@ where
     let image_rgba = image_loaded.flipv().to_rgba8();
     let (width, height) = image_loaded.dimensions();
 
-    Texture::from_data(device, queue, "Example", &image_rgba, width, height)
+    Texture::from_data(device, queue, name, &image_rgba, width, height)
 }
 
 #[repr(C)]
@@ -548,5 +631,45 @@ impl Texture {
             view,
             sampler,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct Time {
+    pub curr: std::time::SystemTime,
+    pub delta: f32,
+    pub runtime: f32,
+    pub fps: usize,
+}
+
+impl Time {
+    pub fn start() -> Self {
+        Self {
+            curr: std::time::SystemTime::now(),
+            delta: 0.0,
+            runtime: 0.0,
+            fps: 0,
+        }
+    }
+
+    pub fn next(&self) -> Time {
+        let elapsed = self.curr.elapsed().expect(
+            "Time::next failed, this could only occur during a y2k style bug!",
+        );
+        let delta = elapsed.as_secs_f32();
+
+        Self {
+            delta,
+            runtime: self.runtime + delta,
+            fps: (1.0 / delta) as usize,
+            curr: std::time::SystemTime::now(),
+        }
+    }
+
+    pub fn make_seed(&self) -> u64 {
+        self.curr
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos() as u64
     }
 }

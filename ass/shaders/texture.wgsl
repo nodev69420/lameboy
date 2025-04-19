@@ -20,7 +20,7 @@ const POS = array<vec2<f32>, 6>(
 @vertex fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
 
     let coord = POS[index];
-    let clip = vec4<f32>(coord, 0.0, 1.0);
+    let clip = matrix * vec4<f32>(coord, 0.0, 1.0);
 
     return VertexOutput(
         clip,
